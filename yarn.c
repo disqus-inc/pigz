@@ -1,6 +1,6 @@
 /* yarn.c -- generic thread operations implemented using pthread functions
- * Copyright (C) 2008, 2011, 2012, 2015 Mark Adler
- * Version 1.4  19 Jan 2015  Mark Adler
+ * Copyright (C) 2008 Mark Adler
+ * Version 1.1  26 Oct 2008  Mark Adler
  * For conditions of distribution and use, see copyright notice in yarn.h
  */
 
@@ -13,21 +13,11 @@
    1.0    19 Oct 2008  First version
    1.1    26 Oct 2008  No need to set the stack size -- remove
                        Add yarn_abort() function for clean-up on error exit
-   1.2    19 Dec 2011  (changes reversed in 1.3)
-   1.3    13 Jan 2012  Add large file #define for consistency with pigz.c
-                       Update thread portability #defines per IEEE 1003.1-2008
-                       Fix documentation in yarn.h for yarn_prefix
-   1.4    19 Jan 2015  Allow yarn_abort() to avoid error message to stderr
-                       Accept and do nothing for NULL argument to free_lock()
  */
 
 /* for thread portability */
-#define _XOPEN_SOURCE 700
-#define _POSIX_C_SOURCE 200809L
-#define _THREAD_SAFE
-
-/* use large file functions if available */
-#define _FILE_OFFSET_BITS 64
+#define _POSIX_PTHREAD_SEMANTICS
+#define _REENTRANT
 
 /* external libraries and entities referenced */
 #include <stdio.h>      /* fprintf(), stderr */
@@ -56,10 +46,10 @@ void (*yarn_abort)(int) = NULL;
 /* immediately exit -- use for errors that shouldn't ever happen */
 local void fail(int err)
 {
-    if (yarn_abort != NULL)
-        yarn_abort(err);
     fprintf(stderr, "%s: %s (%d) -- aborting\n", yarn_prefix,
             err == ENOMEM ? "out of memory" : "internal pthread error", err);
+    if (yarn_abort != NULL)
+        yarn_abort(err);
     exit(err == ENOMEM || err == EAGAIN ? err : EINVAL);
 }
 
@@ -174,9 +164,6 @@ long peek_lock(lock *bolt)
 void free_lock(lock *bolt)
 {
     int ret;
-
-    if (bolt == NULL)
-        return;
     if ((ret = pthread_cond_destroy(&(bolt->cond))) ||
         (ret = pthread_mutex_destroy(&(bolt->mutex))))
         fail(ret);
@@ -211,8 +198,6 @@ local void reenter(void *dummy)
 {
     thread *match, **prior;
     pthread_t me;
-
-    (void)dummy;
 
     /* find this thread in the threads list by matching the thread id */
     me = pthread_self();
