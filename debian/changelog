@@ -1,3 +1,9 @@
+pigz (2.1.5-1) unstable; urgency=low
+
+  * New upstream release (implemented most of local modifications)
+
+ -- Eduard Bloch <blade@debian.org>  Thu, 14 Jan 2010 20:48:17 +0100
+
 pigz (2.1.4-1) unstable; urgency=low
 
   * Initial release (closes: #510624)
