@@ -3,7 +3,7 @@ Section: utils
 Priority: extra
 Maintainer: Eduard Bloch <blade@debian.org>
 Build-Depends: debhelper (>= 7), zlib1g-dev
-Standards-Version: 3.8.3
+Standards-Version: 3.8.4
 Homepage: http://zlib.net/pigz/
 
 Package: pigz
