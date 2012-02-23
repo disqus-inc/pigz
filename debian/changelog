@@ -1,9 +1,17 @@
-pigz (2.1.6-1+squeeze1) stable; urgency=high
+pigz (2.2.3-1~bpo60+1) squeeze-backports; urgency=low
 
-  * Use 600 permissions for unfinished output files (CVE-2013-0296,
-    closes: #700608)
+  * Rebuild for squeeze-backports.
+  * Remove debian/source/options and modify debian/rules to compress with .gz.
+  * Add myself to uploaders. 
 
- -- Eduard Bloch <blade@debian.org>  Sat, 23 Feb 2013 21:46:31 +0100
+ -- Holger Levsen <holger@debian.org>  Thu, 23 Feb 2012 19:23:58 +0100
+
+pigz (2.2.3-1) unstable; urgency=low
+
+  * New upstream release (closes: #659248)
+  * Policy version bump, also using format 3.0 (quilt) and xz compression
+
+ -- Eduard Bloch <blade@debian.org>  Sat, 11 Feb 2012 01:10:06 +0100
 
 pigz (2.1.6-1) unstable; urgency=low
 

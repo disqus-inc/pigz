@@ -1,0 +1,47 @@
+Description: use format macros from inttypes.h
+ The normal code selects %llu or %lu at runtime depending on the off_t size but a) off_t is signed and b) on amd64 off_t is just a long int, not long long.
+ .
+ pigz (2.2.3-1) UNRELEASED; urgency=low
+ .
+   * New upstream release
+Author: Eduard Bloch <blade@debian.org>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- pigz-2.2.3.orig/pigz.c
++++ pigz-2.2.3/pigz.c
+@@ -325,6 +325,8 @@
+                            release(), peek_lock(), free_lock(), yarn_name */
+ #endif
+ 
++#include <inttypes.h>
++
+ /* for local functions and globals */
+ #define local static
+ 
+@@ -2303,12 +2305,10 @@ local void show_info(int method, unsigne
+         if ((form == 3 && !decode) ||
+             (method == 8 && in_tot > (len + (len >> 10) + 12)) ||
+             (method == 256 && in_tot > len + (len >> 1) + 3))
+-            printf(sizeof(off_t) == 4 ? "%10lu %10lu?  unk    %s\n" :
+-                                        "%10llu %10llu?  unk    %s\n",
++            printf("%10"PRId64" %10"PRId64"?  unk    %s\n",
+                    in_tot, len, name);
+         else
+-            printf(sizeof(off_t) == 4 ? "%10lu %10lu %6.1f%%  %s\n" :
+-                                        "%10llu %10llu %6.1f%%  %s\n",
++            printf("%10"PRId64" %10"PRId64" %6.1f%%  %s\n",
+                    in_tot, len,
+                    len == 0 ? 0 : 100 * (len - in_tot)/(double)len,
+                    name);
