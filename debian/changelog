@@ -1,7 +1,24 @@
+pigz (2.2.4-1~bpo60+1) squeeze-backports; urgency=low
+
+  * Rebuild for squeeze-backports.
+  * Remove debian/source/options and modify debian/rules to compress with gz.
+  * Add myself to uploaders. 
+
+ -- Holger Levsen <holger@debian.org>  Mon, 28 May 2012 10:21:33 +0200
+
+pigz (2.2.4-1) unstable; urgency=low
+
+  * New upstream release
+  * Using upstream manual page (closes: #520617)
+  * Creating unpigz hardlink and related manpage link (closes: #661791)
+  * Removed using_standard_format_macros patch (superseded by upstream change)
+
+ -- Eduard Bloch <blade@debian.org>  Tue, 08 May 2012 22:59:22 +0200
+
 pigz (2.2.3-1) unstable; urgency=low
 
   * New upstream release (closes: #659248)
-  * Policy version bump, also using format 3.0 (quilt) and xz compression
+  * Policy version bump, also using format 3.0 (quilt) and xz compression,
 
  -- Eduard Bloch <blade@debian.org>  Sat, 11 Feb 2012 01:10:06 +0100
 

@@ -27,7 +27,8 @@ install: build
 	dh_testroot
 	dh_prep  
 	dh_installdirs
-	cp pigz $(CURDIR)/debian/pigz/usr/bin
+	cp -l pigz $(CURDIR)/debian/pigz/usr/bin
+	cp -l pigz $(CURDIR)/debian/pigz/usr/bin/unpigz
 
 binary-indep: install
 
@@ -37,16 +38,17 @@ binary-arch: install
 	dh_installchangelogs 
 	dh_installdocs
 	dh_installexamples
-	dh_installman debian/pigz.1
+	dh_installman pigz.1
 	dh_link
 	dh_strip
 	dh_compress
+	ln debian/pigz/usr/share/man/man1/pigz.1.gz debian/pigz/usr/share/man/man1/unpigz.1.gz
 	dh_fixperms
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol
 	dh_md5sums
-	dh_builddeb -- -Zxz
+	dh_builddeb
 
 binary: binary-indep binary-arch
 .PHONY: build clean binary-indep binary-arch binary install configure

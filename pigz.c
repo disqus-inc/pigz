@@ -1,6 +1,6 @@
 /* pigz.c -- parallel implementation of gzip
  * Copyright (C) 2007, 2008, 2009, 2010, 2011, 2012 Mark Adler
- * Version 2.2.3  15 Jan 2012  Mark Adler
+ * Version 2.2.4  11 Mar 2012  Mark Adler
  */
 
 /*
@@ -137,9 +137,16 @@
                        Add thread portability #defines from yarn.c
                        Have rsyncable compression be independent of threading
                        Fix bug where constructed dictionaries not being used
+   2.2.4  11 Mar 2012  Avoid some return value warnings
+                       Improve the portability of printing the off_t type
+                       Check for existence of compress binary before using
+                       Update zlib version checking to 1.2.6 for new functions
+                       Fix bug in zip (-K) output
+                       Fix license in pigz.spec
+                       Remove thread portability #defines in pigz.c
  */
 
-#define VERSION "pigz 2.2.3\n"
+#define VERSION "pigz 2.2.4\n"
 
 /* To-do:
     - make source portable for Windows, VMS, etc. (see gzip source code)
@@ -271,11 +278,6 @@
    input buffers to about the same number.
  */
 
-/* for thread portability */
-#define _XOPEN_SOURCE 700
-#define _POSIX_C_SOURCE 200809L
-#define _THREAD_SAFE
-
 /* use large file functions if available */
 #define _FILE_OFFSET_BITS 64
 
@@ -303,6 +305,9 @@
 #include <dirent.h>     /* opendir(), readdir(), closedir(), DIR, */
                         /* struct dirent */
 #include <limits.h>     /* PATH_MAX, UINT_MAX */
+#if __STDC_VERSION__-0 >= 199901L || __GNUC__-0 >= 3
+#  include <inttypes.h> /* intmax_t */
+#endif
 
 #ifdef __hpux
 #  include <sys/param.h>
@@ -783,7 +788,7 @@ local void put_trailer(unsigned long ulen, unsigned long clen,
         PUT2L(tail + 8, 1);         /* number of entries on this disk */
         PUT2L(tail + 10, 1);        /* total number of entries */
         PUT4L(tail + 12, cent);     /* size of central directory */
-        PUT4L(tail + 16, head + clen + 12); /* offset of central directory */
+        PUT4L(tail + 16, head + clen + 16); /* offset of central directory */
         PUT2L(tail + 20, 0);        /* no zip file comment */
         writen(outd, tail, 22);     /* write end of central directory record */
     }
@@ -1215,7 +1220,7 @@ local void compress_thread(void *dummy)
     unsigned char *next;            /* pointer for blocks, check value data */
     size_t left;                    /* input left to process */
     size_t len;                     /* remaining bytes to compress/check */
-#if ZLIB_VERNUM >= 0x1253
+#if ZLIB_VERNUM >= 0x1260
     int bits;                       /* deflate pending bits */
 #endif
     z_stream strm;                  /* deflate stream */
@@ -1299,7 +1304,7 @@ local void compress_thread(void *dummy)
                if this is the last block */
             strm.avail_in = (unsigned)len;
             if (left || job->more) {
-#if ZLIB_VERNUM >= 0x1253
+#if ZLIB_VERNUM >= 0x1260
                 deflate_engine(&strm, job->out, Z_BLOCK);
 
                 /* add just enough empty blocks to get to a byte boundary */
@@ -1673,7 +1678,7 @@ local void single_compress(int reset)
     size_t start;                   /* start of next read */
     size_t block;                   /* bytes in current block for -i */
     unsigned hash;                  /* hash for rsyncable */
-#if ZLIB_VERNUM >= 0x1253
+#if ZLIB_VERNUM >= 0x1260
     int bits;                       /* deflate pending bits */
 #endif
     unsigned char *scan;            /* pointer for hash computation */
@@ -1800,7 +1805,7 @@ local void single_compress(int reset)
         got = left;
         check = CHECK(check, strm->next_in, strm->avail_in);
         if (more || got) {
-#if ZLIB_VERNUM >= 0x1253
+#if ZLIB_VERNUM >= 0x1260
             DEFLATE_WRITE(Z_BLOCK);
             (void)deflatePending(strm, Z_NULL, &bits);
             if (bits & 1)
@@ -2303,15 +2308,25 @@ local void show_info(int method, unsigned long check, off_t len, int cont)
         if ((form == 3 && !decode) ||
             (method == 8 && in_tot > (len + (len >> 10) + 12)) ||
             (method == 256 && in_tot > len + (len >> 1) + 3))
-            printf(sizeof(off_t) == 4 ? "%10lu %10lu?  unk    %s\n" :
-                                        "%10llu %10llu?  unk    %s\n",
+#if __STDC_VERSION__-0 >= 199901L || __GNUC__-0 >= 3
+            printf("%10jd %10jd?  unk    %s\n",
+                   (intmax_t)in_tot, (intmax_t)len, name);
+        else
+            printf("%10jd %10jd %6.1f%%  %s\n",
+                   (intmax_t)in_tot, (intmax_t)len,
+                   len == 0 ? 0 : 100 * (len - in_tot)/(double)len,
+                   name);
+#else
+            printf(sizeof(off_t) == sizeof(long) ?
+                   "%10ld %10ld?  unk    %s\n" : "%10lld %10lld?  unk    %s\n",
                    in_tot, len, name);
         else
-            printf(sizeof(off_t) == 4 ? "%10lu %10lu %6.1f%%  %s\n" :
-                                        "%10llu %10llu %6.1f%%  %s\n",
+            printf(sizeof(off_t) == sizeof(long) ?
+                   "%10ld %10ld %6.1f%%  %s\n" : "%10lld %10lld %6.1f%%  %s\n",
                    in_tot, len,
                    len == 0 ? 0 : 100 * (len - in_tot)/(double)len,
                    name);
+#endif
     }
 }
 
@@ -2925,17 +2940,17 @@ local void copymeta(char *from, char *to)
         return;
 
     /* set to's mode bits, ignore errors */
-    chmod(to, st.st_mode & 07777);
+    (void)chmod(to, st.st_mode & 07777);
 
     /* copy owner's user and group, ignore errors */
-    chown(to, st.st_uid, st.st_gid);
+    (void)chown(to, st.st_uid, st.st_gid);
 
     /* copy access and modify times, ignore errors */
     times[0].tv_sec = st.st_atime;
     times[0].tv_usec = 0;
     times[1].tv_sec = st.st_mtime;
     times[1].tv_usec = 0;
-    utimes(to, times);
+    (void)utimes(to, times);
 }
 
 /* set the access and modify times of fd to t */
@@ -2947,7 +2962,7 @@ local void touch(char *path, time_t t)
     times[0].tv_usec = 0;
     times[1].tv_sec = t;
     times[1].tv_usec = 0;
-    utimes(path, times);
+    (void)utimes(path, times);
 }
 
 /* process provided input file, or stdin if path is NULL -- process() can
