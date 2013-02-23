@@ -1,5 +1,11 @@
 #!/usr/bin/make -f
 
+CFLAGS:=$(shell dpkg-buildflags --get CFLAGS)
+LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
+CPPFLAGS:=$(shell dpkg-buildflags --get CPPFLAGS)
+export CFLAGS
+export LDFLAGS
+export CPPFLAGS
 #export DH_VERBOSE=1
 
 configure: configure-stamp

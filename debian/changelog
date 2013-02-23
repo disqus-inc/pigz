@@ -1,3 +1,11 @@
+pigz (2.2.4-2) unstable; urgency=high
+
+  * Use 600 permissions for unfinished output files (CVE-2013-0296,
+    closes: #700608)
+  * started applying Debian hardening flags
+
+ -- Eduard Bloch <blade@debian.org>  Sat, 23 Feb 2013 13:44:42 +0100
+
 pigz (2.2.4-1) unstable; urgency=low
 
   * New upstream release
