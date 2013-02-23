@@ -1,3 +1,10 @@
+pigz (2.1.6-1+squeeze1) stable; urgency=high
+
+  * Use 600 permissions for unfinished output files (CVE-2013-0296,
+    closes: #700608)
+
+ -- Eduard Bloch <blade@debian.org>  Sat, 23 Feb 2013 21:46:31 +0100
+
 pigz (2.1.6-1) unstable; urgency=low
 
   * New upstream release (closes: #573310)
