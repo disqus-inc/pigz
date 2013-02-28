@@ -2,7 +2,6 @@ Source: pigz
 Section: utils
 Priority: extra
 Maintainer: Eduard Bloch <blade@debian.org>
-Uploaders: Holger Levsen <holger@debian.org>
 Build-Depends: debhelper (>= 7), zlib1g-dev
 Standards-Version: 3.9.3
 Homepage: http://zlib.net/pigz/
