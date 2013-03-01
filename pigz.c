@@ -1,6 +1,6 @@
 /* pigz.c -- parallel implementation of gzip
  * Copyright (C) 2007, 2008, 2009, 2010, 2011, 2012 Mark Adler
- * Version 2.2.4  11 Mar 2012  Mark Adler
+ * Version 2.2.5  28 Jul 2012  Mark Adler
  */
 
 /*
@@ -144,9 +144,14 @@
                        Fix bug in zip (-K) output
                        Fix license in pigz.spec
                        Remove thread portability #defines in pigz.c
+   2.2.5  28 Jul 2012  Avoid race condition in free_pool()
+                       Change suffix to .tar when decompressing or listing .tgz
+                       Print name of executable in error messages
+                       Show help properly when the name is unpigz or gunzip
+                       Fix permissions security problem before output is closed
  */
 
-#define VERSION "pigz 2.2.4\n"
+#define VERSION "pigz 2.2.5\n"
 
 /* To-do:
     - make source portable for Windows, VMS, etc. (see gzip source code)
@@ -412,6 +417,7 @@
 #define OUTPOOL(s) ((s)+((s)>>4))
 
 /* globals (modified by main thread only when it's the only thread) */
+local char *prog;           /* name by which pigz was invoked */
 local int ind;              /* input file descriptor */
 local int outd;             /* output file descriptor */
 local char in[PATH_MAX+1];  /* input file name (accommodate recursion) */
@@ -444,13 +450,29 @@ local unsigned long zip_crc;        /* local header crc */
 local unsigned long zip_clen;       /* local header compressed length */
 local unsigned long zip_ulen;       /* local header uncompressed length */
 
+/* display a complaint with the program name on stderr */
+local int complain(char *fmt, ...)
+{
+    va_list ap;
+
+    if (verbosity > 0) {
+        fprintf(stderr, "%s: ", prog);
+        va_start(ap, fmt);
+        vfprintf(stderr, fmt, ap);
+        va_end(ap);
+        putc('\n', stderr);
+        fflush(stderr);
+        warned = 1;
+    }
+    return 0;
+}
+
 /* exit with error, delete output file if in the middle of writing it */
 local int bail(char *why, char *what)
 {
     if (outd != -1 && out != NULL)
         unlink(out);
-    if (verbosity > 0)
-        fprintf(stderr, "pigz abort: %s%s\n", why, what);
+    complain("abort: %s%s", why, what);
     exit(1);
     return 0;
 }
@@ -632,10 +654,10 @@ local void writen(int desc, unsigned char *buf, size_t len)
 
     while (len) {
         ret = write(desc, buf, len);
-        if (ret < 1)
-            fprintf(stderr, "write error code %d\n", errno);
-        if (ret < 1)
+        if (ret < 1) {
+            complain("write error code %d", errno);
             bail("write error on ", out);
+        }
         buf += ret;
         len -= ret;
     }
@@ -1081,9 +1103,9 @@ local int free_pool(struct pool *pool)
         free(space);
         count++;
     }
+    assert(count == pool->made);
     release(pool->have);
     free_lock(pool->have);
-    assert(count == pool->made);
     return count;
 }
 
@@ -2265,6 +2287,8 @@ local void show_info(int method, unsigned long check, off_t len, int cont)
     else if (hname == NULL) {
         n = strlen(in) - compressed_suffix(in);
         strncpy(name, in, n > max + 1 ? max + 1 : n);
+        if (strcmp(in + n, ".tgz") == 0 && n < max + 1)
+            strncpy(name + n, ".tar", max + 1 - n);
     }
     else
         strncpy(name, hname, max + 1);
@@ -2348,10 +2372,8 @@ local void list_info(void)
     method = get_header(1);
     if (method < 0) {
         RELEASE(hname);
-        if (method != -1 && verbosity > 1) {
-            fprintf(stderr, "%s not a compressed file -- skipping\n", in);
-            warned = 1;
-        }
+        if (method != -1 && verbosity > 1)
+            complain("%s not a compressed file -- skipping", in);
         return;
     }
 
@@ -2402,11 +2424,7 @@ local void list_info(void)
     /* skip to end to get trailer (8 bytes), compute compressed length */
     if (in_short) {                     /* whole thing already read */
         if (in_left < 8) {
-            if (verbosity > 0) {
-                fprintf(stderr, "%s not a valid gzip file -- skipping\n",
-                        in);
-                warned = 1;
-            }
+            complain("%s not a valid gzip file -- skipping", in);
             return;
         }
         in_tot = in_left - 8;           /* compressed size */
@@ -2425,11 +2443,7 @@ local void list_info(void)
         } while (in_left == BUF);       /* read until end */
         if (in_left < 8) {
             if (n + in_left < 8) {
-                if (verbosity > 0) {
-                    fprintf(stderr, "%s not a valid gzip file -- skipping\n",
-                            in);
-                    warned = 1;
-                }
+                complain("%s not a valid gzip file -- skipping", in);
                 return;
             }
             if (in_left) {
@@ -2443,10 +2457,7 @@ local void list_info(void)
         in_tot -= at + 8;
     }
     if (in_tot < 2) {
-        if (verbosity > 0) {
-            fprintf(stderr, "%s not a valid gzip file -- skipping\n", in);
-            warned = 1;
-        }
+        complain("%s not a valid gzip file -- skipping", in);
         return;
     }
 
@@ -2716,10 +2727,8 @@ local void infchk(void)
     /* gzip -cdf copies junk after gzip stream directly to output */
     if (form < 2 && ret == -2 && force && pipeout && decode != 2 && !list)
         cat();
-    else if (ret != -1 && form < 2) {
-        fprintf(stderr, "%s OK, has trailing junk which was ignored\n", in);
-        warned = 1;
-    }
+    else if (ret != -1 && form < 2)
+        complain("%s OK, has trailing junk which was ignored", in);
 }
 
 /* --- decompress Unix compress (LZW) input --- */
@@ -3009,14 +3018,11 @@ local void process(char *path)
 #ifdef EOVERFLOW
             if (errno == EOVERFLOW || errno == EFBIG)
                 bail(in,
-                    " too large -- pigz not compiled with large file support");
+                    " too large -- not compiled with large file support");
 #endif
             if (errno) {
                 in[len] = 0;
-                if (verbosity > 0) {
-                    fprintf(stderr, "%s does not exist -- skipping\n", in);
-                    warned = 1;
-                }
+                complain("%s does not exist -- skipping", in);
                 return;
             }
             len = strlen(in);
@@ -3027,25 +3033,15 @@ local void process(char *path)
         if ((st.st_mode & S_IFMT) != S_IFREG &&
             (st.st_mode & S_IFMT) != S_IFLNK &&
             (st.st_mode & S_IFMT) != S_IFDIR) {
-            if (verbosity > 0) {
-                fprintf(stderr, "%s is a special file or device -- skipping\n",
-                        in);
-                warned = 1;
-            }
+            complain("%s is a special file or device -- skipping", in);
             return;
         }
         if ((st.st_mode & S_IFMT) == S_IFLNK && !force && !pipeout) {
-            if (verbosity > 0) {
-                fprintf(stderr, "%s is a symbolic link -- skipping\n", in);
-                warned = 1;
-            }
+            complain("%s is a symbolic link -- skipping", in);
             return;
         }
         if ((st.st_mode & S_IFMT) == S_IFDIR && !recurse) {
-            if (verbosity > 0) {
-                fprintf(stderr, "%s is a directory -- skipping\n", in);
-                warned = 1;
-            }
+            complain("%s is a directory -- skipping", in);
             return;
         }
 
@@ -3118,10 +3114,7 @@ local void process(char *path)
         /* don't compress .gz (or provided suffix) files, unless -f */
         if (!(force || list || decode) && len >= strlen(sufx) &&
                 strcmp(in + len - strlen(sufx), sufx) == 0) {
-            if (verbosity > 0) {
-                fprintf(stderr, "%s ends with %s -- skipping\n", in, sufx);
-                warned = 1;
-            }
+            complain("%s ends with %s -- skipping", in, sufx);
             return;
         }
 
@@ -3129,12 +3122,7 @@ local void process(char *path)
         if (decode && !pipeout) {
             int suf = compressed_suffix(in);
             if (suf == 0) {
-                if (verbosity > 0) {
-                    fprintf(stderr,
-                            "%s does not have compressed suffix -- skipping\n",
-                            in);
-                    warned = 1;
-                }
+                complain("%s does not have compressed suffix -- skipping", in);
                 return;
             }
             len -= suf;
@@ -3162,13 +3150,9 @@ local void process(char *path)
             RELEASE(hname);
             if (ind != 0)
                 close(ind);
-            if (method != -1 && verbosity > 0) {
-                fprintf(stderr,
-                    method < 0 ? "%s is not compressed -- skipping\n" :
-                        "%s has unknown compression method -- skipping\n",
-                    in);
-                warned = 1;
-            }
+            if (method != -1)
+                complain(method < 0 ? "%s is not compressed -- skipping" :
+                         "%s has unknown compression method -- skipping", in);
             return;
         }
 
@@ -3212,7 +3196,7 @@ local void process(char *path)
                  " (use -f to force)");
     }
     else {
-        char *to;
+        char *to, *repl;
 
         /* use header name for output when decompressing with -N */
         to = in;
@@ -3221,14 +3205,17 @@ local void process(char *path)
             len = strlen(hname);
         }
 
+        /* replace .tgx with .tar when decoding */
+        repl = decode && strcmp(to + len, ".tgz") ? "" : ".tar";
+
         /* create output file and open to write */
-        out = malloc(len + (decode ? 0 : strlen(sufx)) + 1);
+        out = malloc(len + (decode ? strlen(repl) : strlen(sufx)) + 1);
         if (out == NULL)
             bail("not enough memory", "");
         memcpy(out, to, len);
-        strcpy(out + len, decode ? "" : sufx);
+        strcpy(out + len, decode ? repl : sufx);
         outd = open(out, O_CREAT | O_TRUNC | O_WRONLY |
-                         (force ? 0 : O_EXCL), 0666);
+                         (force ? 0 : O_EXCL), 0600);
 
         /* if exists and not -f, give user a chance to overwrite */
         if (outd < 0 && errno == EEXIST && isatty(0) && verbosity) {
@@ -3244,15 +3231,12 @@ local void process(char *path)
             } while (ch != EOF && ch != '\n' && ch != '\r');
             if (reply == 1)
                 outd = open(out, O_CREAT | O_TRUNC | O_WRONLY,
-                            0666);
+                            0600);
         }
 
         /* if exists and no overwrite, report and go on to next */
         if (outd < 0 && errno == EEXIST) {
-            if (verbosity > 0) {
-                fprintf(stderr, "%s exists -- skipping\n", out);
-                warned = 1;
-            }
+            complain("%s exists -- skipping", out);
             RELEASE(out);
             RELEASE(hname);
             if (ind != 0)
@@ -3571,7 +3555,7 @@ local int option(char *arg)
                 bail("too many processes: ", arg);
 #ifdef NOTHREAD
             if (procs > 1)
-                bail("this pigz compiled without threads", "");
+                bail("compiled without threads", "");
 #endif
             new_opts();
         }
@@ -3606,10 +3590,15 @@ int main(int argc, char **argv)
     unsigned long done;             /* number of named files processed */
     char *opts, *p;                 /* environment default options, marker */
 
+    /* save pointer to program name for error messages */
+    p = strrchr(argv[0], '/');
+    p = p == NULL ? argv[0] : p + 1;
+    prog = *p ? p : "pigz";
+
     /* prepare for interrupts and logging */
     signal(SIGINT, cut_short);
 #ifndef NOTHREAD
-    yarn_prefix = "pigz";           /* prefix for yarn error messages */
+    yarn_prefix = prog;             /* prefix for yarn error messages */
     yarn_abort = cut_short;         /* call on thread error */
 #endif
 #ifdef DEBUG
@@ -3656,17 +3645,15 @@ int main(int argc, char **argv)
         option(NULL);
     }
 
-    /* if no command line arguments and stdout is a terminal, show help */
-    if (argc < 2 && isatty(1))
-        help();
-
     /* decompress if named "unpigz" or "gunzip", to stdout if "*cat" */
-    p = strrchr(argv[0], '/');
-    p = p == NULL ? argv[0] : p + 1;
-    if (strcmp(p, "unpigz") == 0 || strcmp(p, "gunzip") == 0)
+    if (strcmp(prog, "unpigz") == 0 || strcmp(prog, "gunzip") == 0)
         decode = 1, headis = 0;
-    if (strcmp(p + strlen(p) - 3, "cat") == 0)
+    if ((n = strlen(prog)) > 2 && strcmp(prog + n - 3, "cat") == 0)
         decode = 1, headis = 0, pipeout = 1;
+
+    /* if no arguments and compressed data to or from a terminal, show help */
+    if (argc < 2 && isatty(decode ? 0 : 1))
+        help();
 
     /* process command-line arguments, no options after "--" */
     done = noop = 0;
@@ -3676,10 +3663,9 @@ int main(int argc, char **argv)
             option(NULL);
         }
         else if (noop || option(argv[n])) { /* true if file name, process it */
-            if (done == 1 && pipeout && !decode && !list && form > 1) {
-                fprintf(stderr, "warning: output is concatenated zip files ");
-                fprintf(stderr, "-- pigz will not be able to extract\n");
-            }
+            if (done == 1 && pipeout && !decode && !list && form > 1)
+                complain("warning: output will be concatenated zip files -- "
+                         "will not be able to extract");
             process(strcmp(argv[n], "-") ? argv[n] : NULL);
             done++;
         }

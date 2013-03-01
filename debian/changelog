@@ -1,8 +1,8 @@
-pigz (2.2.4-3) unstable; urgency=low
+pigz (2.2.5-1) experimental; urgency=low
 
-  * removed hardening flags, this build is targeting Wheezy
+  * New upstream version (includes fix of #700608, removed our patch)
 
- -- Eduard Bloch <blade@debian.org>  Thu, 28 Feb 2013 20:16:03 +0100
+ -- Eduard Bloch <blade@debian.org>  Fri, 01 Mar 2013 21:23:58 +0100
 
 pigz (2.2.4-2) unstable; urgency=high
 
