@@ -1,11 +1,5 @@
 #!/usr/bin/make -f
 
-CFLAGS:=$(shell dpkg-buildflags --get CFLAGS)
-LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
-CPPFLAGS:=$(shell dpkg-buildflags --get CPPFLAGS)
-export CFLAGS
-export LDFLAGS
-export CPPFLAGS
 #export DH_VERBOSE=1
 
 configure: configure-stamp
@@ -54,7 +48,7 @@ binary-arch: install
 	dh_shlibdeps
 	dh_gencontrol
 	dh_md5sums
-	dh_builddeb -- -Zxz
+	dh_builddeb
 
 binary: binary-indep binary-arch
 .PHONY: build clean binary-indep binary-arch binary install configure
