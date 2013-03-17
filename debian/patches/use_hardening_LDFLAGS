@@ -1,13 +1,13 @@
-Index: a/Makefile
+Index: pigz-2.3/Makefile
 ===================================================================
---- a/Makefile	(Revision 4038)
-+++ b/Makefile	(Arbeitskopie)
-@@ -2,7 +2,7 @@
- CFLAGS=-O3 -Wall -Wextra
+--- pigz-2.3.orig/Makefile	2013-03-17 12:29:16.187681931 +0100
++++ pigz-2.3/Makefile	2013-03-17 12:29:49.181862571 +0100
+@@ -3,7 +3,7 @@
  
- pigz: pigz.o yarn.o
--	$(CC) -o pigz pigz.o yarn.o -lpthread -lz
-+	$(CC) $(LDFLAGS) -o pigz pigz.o yarn.o -lpthread -lz
+ 
+ pigz: pigz.o yarn.o zopfli/deflate.o zopfli/blocksplitter.o zopfli/tree.o zopfli/lz77.o zopfli/cache.o zopfli/hash.o zopfli/util.o zopfli/squeeze.o zopfli/katajainen.o
+-	$(CC) -o pigz $^ -lpthread -lz
++	$(CC) -o pigz $^ $(LDFLAGS) -lpthread -lz
  	ln -f pigz unpigz
  
- pigz.o: pigz.c yarn.h
+ pigz.o: pigz.c yarn.h zopfli/deflate.h zopfli/util.h

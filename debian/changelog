@@ -1,8 +1,23 @@
+pigz (2.3-1) experimental; urgency=low
+
+  * New upstream release
+  * restored Debian hardening flags inclusion, also fixes linking with libm
+    (minor upstream bug)
+  * Use locally defined buffer size instead of PATH_MAX (hurd porting)
+
+ -- Eduard Bloch <blade@debian.org>  Sun, 17 Mar 2013 11:10:42 +0100
+
 pigz (2.2.5-1) experimental; urgency=low
 
   * New upstream version (includes fix of #700608, removed our patch)
 
  -- Eduard Bloch <blade@debian.org>  Fri, 01 Mar 2013 21:23:58 +0100
+
+pigz (2.2.4-3) unstable; urgency=low
+
+  * NOT RELEASED YET
+
+ -- Eduard Bloch <blade@debian.org>  Sat, 23 Feb 2013 14:08:46 +0100
 
 pigz (2.2.4-2) unstable; urgency=high
 

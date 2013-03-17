@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 CFLAGS:=$(shell dpkg-buildflags --get CFLAGS)
-LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
+LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS) -lm
 CPPFLAGS:=$(shell dpkg-buildflags --get CPPFLAGS)
 export CFLAGS
 export LDFLAGS
