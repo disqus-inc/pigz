@@ -1,3 +1,10 @@
+pigz (2.3-2) unstable; urgency=low
+
+  * Unstable upload
+  * Editorial changes (policy version update, watch file from bartm)
+
+ -- Eduard Bloch <blade@debian.org>  Sun, 04 Aug 2013 01:26:09 +0200
+
 pigz (2.3-1) experimental; urgency=low
 
   * New upstream release
