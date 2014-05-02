@@ -1,60 +1,14 @@
 #!/usr/bin/make -f
 
-CFLAGS:=$(shell dpkg-buildflags --get CFLAGS)
-LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS) -lm
-CPPFLAGS:=$(shell dpkg-buildflags --get CPPFLAGS)
-export CFLAGS
-export LDFLAGS
-export CPPFLAGS
-#export DH_VERBOSE=1
+%:
+	dh $@ --parallel --with quilt
 
-configure: configure-stamp
-configure-stamp:
-	dh_testdir
-	touch configure-stamp
-
-build: build-arch build-indep
-build-arch: build-stamp
-build-indep: build-stamp
-build-stamp: configure-stamp  
-	dh_testdir
-	$(MAKE)
-	touch $@
-
-clean: 
-	dh_testdir
-	dh_testroot
-	rm -f build-stamp configure-stamp
-	$(MAKE) clean
-	dh_clean 
-
-install: build
+override_dh_install:
 	dh_testdir
 	dh_testroot
 	dh_prep  
 	dh_installdirs
 	cp -l pigz $(CURDIR)/debian/pigz/usr/bin
 	cp -l pigz $(CURDIR)/debian/pigz/usr/bin/unpigz
-
-binary-indep: install
-
-binary-arch: install
-	dh_testdir
-	dh_testroot
-	dh_installchangelogs 
-	dh_installdocs
-	dh_installexamples
 	dh_installman pigz.1
-	dh_link
-	dh_strip
-	dh_compress
-	ln debian/pigz/usr/share/man/man1/pigz.1.gz debian/pigz/usr/share/man/man1/unpigz.1.gz
-	dh_fixperms
-	dh_installdeb
-	dh_shlibdeps
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb -- -Zxz
-
-binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install configure
+	ln -sf pigz.1.gz debian/pigz/usr/share/man/man1/unpigz.1.gz

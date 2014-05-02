@@ -1,3 +1,11 @@
+pigz (2.3.1-1) unstable; urgency=medium
+
+  * New upstream version 2.3.1
+  * Changed rules to dh(9), policy reference update, removed patch for LDFLAGS
+    and libm usage (fixed by upstream)
+
+ -- Eduard Bloch <blade@debian.org>  Fri, 02 May 2014 17:29:38 +0200
+
 pigz (2.3-2) unstable; urgency=low
 
   * Unstable upload
@@ -19,12 +27,6 @@ pigz (2.2.5-1) experimental; urgency=low
   * New upstream version (includes fix of #700608, removed our patch)
 
  -- Eduard Bloch <blade@debian.org>  Fri, 01 Mar 2013 21:23:58 +0100
-
-pigz (2.2.4-3) unstable; urgency=low
-
-  * NOT RELEASED YET
-
- -- Eduard Bloch <blade@debian.org>  Sat, 23 Feb 2013 14:08:46 +0100
 
 pigz (2.2.4-2) unstable; urgency=high
 
