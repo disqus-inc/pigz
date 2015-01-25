@@ -1,7 +1,15 @@
 #!/usr/bin/make -f
 
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+-include /usr/share/quilt/quilt.make
+
 %:
 	dh $@ --parallel --with quilt
+
+override_dh_auto_build:
+	dh_auto_build -- LDFLAGS="-lz $(LDFLAGS)" CFLAGS="$(CFLAGS)" CPPFLAGS="$(CPPFLAGS)"
 
 override_dh_install:
 	dh_testdir

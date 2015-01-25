@@ -1,3 +1,16 @@
+pigz (2.3.3-1) experimental; urgency=low
+
+  * New upstream release
+
+ -- Eduard Bloch <blade@debian.org>  Sun, 25 Jan 2015 19:07:46 +0100
+
+pigz (2.3.1-2) unstable; urgency=high
+
+  * Patch(es) from upstream's SCM to solve handling of target file names with
+    the -N option (CVE-2015-1191, closes: #774978)
+
+ -- Eduard Bloch <blade@debian.org>  Sun, 18 Jan 2015 23:58:51 +0100
+
 pigz (2.3.1-1) unstable; urgency=medium
 
   * New upstream version 2.3.1
