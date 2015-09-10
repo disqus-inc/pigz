@@ -1,3 +1,9 @@
+pigz (2.3.3-2) unstable; urgency=low
+
+  * Unstable upload
+
+ -- Eduard Bloch <blade@debian.org>  Thu, 10 Sep 2015 19:38:24 +0200
+
 pigz (2.3.3-1) experimental; urgency=low
 
   * New upstream release
