@@ -1,6 +1,6 @@
 /* pigz.c -- parallel implementation of gzip
- * Copyright (C) 2007-2015 Mark Adler
- * Version 2.3.3  24 Jan 2015  Mark Adler
+ * Copyright (C) 2007-2016 Mark Adler
+ * Version 2.3.4  1 Oct 2016  Mark Adler
  */
 
 /*
@@ -175,9 +175,15 @@
                        Improve decompression error detection and reporting
    2.3.3  24 Jan 2015  Portability improvements
                        Update copyright years in documentation
+   2.3.4   1 Oct 2016  Fix an out of bounds access due to invalid LZW input
+                       Add an extra sync marker between independent blocks
+                       Add zlib version for verbose version option (-vV)
+                       Permit named pipes as input (e.g. made by mkfifo())
+                       Fix a bug in -r directory traversal
+                       Add warning for a zip file entry 4 GiB or larger
  */
 
-#define VERSION "pigz 2.3.3\n"
+#define VERSION "pigz 2.3.4\n"
 
 /* To-do:
     - make source portable for Windows, VMS, etc. (see gzip source code)
@@ -342,7 +348,7 @@
 #  include <inttypes.h> /* intmax_t */
 #endif
 
-#ifdef DEBUG
+#ifdef PIGZ_DEBUG
 #  if defined(__APPLE__)
 #    include <malloc/malloc.h>
 #    define MALLOC_SIZE(p) malloc_size(p)
@@ -360,6 +366,17 @@
 #ifdef __hpux
 #  include <sys/param.h>
 #  include <sys/pstat.h>
+#endif
+
+#ifndef S_IFLNK
+#  define S_IFLNK 0
+#endif
+
+#ifdef __MINGW32__
+#  define chown(p,o,g) 0
+#  define utimes(p,t)  0
+#  define lstat(p,s)   stat(p,s)
+#  define _exit(s)     exit(s)
 #endif
 
 #include "zlib.h"       /* deflateInit2(), deflateReset(), deflate(), */
@@ -540,7 +557,7 @@ local int complain(char *fmt, ...)
     return 0;
 }
 
-#ifdef DEBUG
+#ifdef PIGZ_DEBUG
 
 /* memory tracking */
 
@@ -620,7 +637,7 @@ local void *yarn_malloc(size_t size)
 
 local void yarn_free(void *ptr)
 {
-    return free_track(&mem_track, ptr);
+    free_track(&mem_track, ptr);
 }
 #endif
 
@@ -641,7 +658,7 @@ local void zlib_free(voidpf opaque, voidpf address)
 #define ZALLOC zlib_alloc
 #define ZFREE zlib_free
 
-#else /* !DEBUG */
+#else /* !PIGZ_DEBUG */
 
 #define MALLOC malloc
 #define REALLOC realloc
@@ -661,7 +678,7 @@ local void *alloc(void *ptr, size_t size)
     return ptr;
 }
 
-#if DEBUG
+#ifdef PIGZ_DEBUG
 
 /* logging */
 
@@ -813,7 +830,7 @@ local void log_dump(void)
         } \
     } while (0)
 
-#else /* !DEBUG */
+#else /* !PIGZ_DEBUG */
 
 #define log_dump()
 #define Trace(x)
@@ -832,7 +849,7 @@ local void cut_short(int sig)
         g.outd = -1;
     }
     log_dump();
-    _exit(sig < 0 ? -sig : ECANCELED);
+    _exit(sig < 0 ? -sig : EINTR);
 }
 
 /* common code for catch block of top routine in the thread */
@@ -874,7 +891,7 @@ local inline size_t vmemcpy(char **mem, size_t *size, size_t off,
 
     need = off + len;
     if (need < off)
-        throw(EOVERFLOW, "overflow");
+        throw(ERANGE, "overflow");
     if (need > *size) {
         need = grow(need);
         if (off == 0) {
@@ -1036,6 +1053,8 @@ local void put_trailer(unsigned long ulen, unsigned long clen,
         PUT4L(tail + 8, clen);
         PUT4L(tail + 12, ulen);
         writen(g.outd, tail, 16);
+        if (clen > UINT32_MAX || ulen > UINT32_MAX)
+            complain("4 GiB or greater length: %s will be unusable", g.outf);
 
         /* write central file header */
         PUT4L(tail, 0x02014b50UL);  /* central header signature */
@@ -1296,7 +1315,7 @@ local void grow_space(struct space *space)
     /* compute next size up */
     more = grow(space->size);
     if (more == space->size)
-        throw(EOVERFLOW, "overflow");
+        throw(ERANGE, "overflow");
 
     /* reallocate the buffer */
     space->buf = alloc(space->buf, more);
@@ -1606,7 +1625,7 @@ local void compress_thread(void *dummy)
 
                         /* add enough empty blocks to get to a byte boundary */
                         (void)deflatePending(&strm, Z_NULL, &bits);
-                        if (bits & 1)
+                        if ((bits & 1) || !g.setdict)
                             deflate_engine(&strm, job->out, Z_SYNC_FLUSH);
                         else if (bits & 7) {
                             do {        /* add static empty blocks */
@@ -1619,6 +1638,8 @@ local void compress_thread(void *dummy)
 #else
                         deflate_engine(&strm, job->out, Z_SYNC_FLUSH);
 #endif
+                        if (!g.setdict)     /* two markers when independent */
+                            deflate_engine(&strm, job->out, Z_FULL_FLUSH);
                     }
                     else
                         deflate_engine(&strm, job->out, Z_FINISH);
@@ -1640,8 +1661,8 @@ local void compress_thread(void *dummy)
                     job->out->len += outsize;
                     if (left || job->more) {
                         bits &= 7;
-                        if (bits & 1) {
-                            if (bits == 7)
+                        if ((bits & 1) || !g.setdict) {
+                            if (bits == 0 || bits > 5)
                                 job->out->buf[job->out->len++] = 0;
                             job->out->buf[job->out->len++] = 0;
                             job->out->buf[job->out->len++] = 0;
@@ -1654,6 +1675,13 @@ local void compress_thread(void *dummy)
                                 job->out->buf[job->out->len++] = 0;
                                 bits += 2;
                             } while (bits < 8);
+                        }
+                        if (!g.setdict) {   /* two markers when independent */
+                            job->out->buf[job->out->len++] = 0;
+                            job->out->buf[job->out->len++] = 0;
+                            job->out->buf[job->out->len++] = 0;
+                            job->out->buf[job->out->len++] = 0xff;
+                            job->out->buf[job->out->len++] = 0xff;
                         }
                     }
                     temp->len += len;
@@ -1977,7 +2005,7 @@ local void parallel_compress(void)
         job->seq = seq;
         Trace(("-- read #%ld%s", seq, more ? "" : " (last)"));
         if (++seq < 1)
-            throw(EOVERFLOW, "overflow");
+            throw(ERANGE, "overflow");
 
         /* start another compress thread if needed */
         if (cthreads < seq && cthreads < g.procs) {
@@ -2184,7 +2212,7 @@ local void single_compress(int reset)
 
                 DEFLATE_WRITE(Z_BLOCK);
                 (void)deflatePending(strm, Z_NULL, &bits);
-                if (bits & 1)
+                if ((bits & 1) || !g.setdict)
                     DEFLATE_WRITE(Z_SYNC_FLUSH);
                 else if (bits & 7) {
                     do {
@@ -2197,6 +2225,8 @@ local void single_compress(int reset)
 #else
                 DEFLATE_WRITE(Z_SYNC_FLUSH);
 #endif
+                if (!g.setdict)             /* two markers when independent */
+                    DEFLATE_WRITE(Z_FULL_FLUSH);
             }
             else
                 DEFLATE_WRITE(Z_FINISH);
@@ -2218,24 +2248,27 @@ local void single_compress(int reset)
                               in + hist, off - hist, (off - hist) + got,
                               &bits, &out, &outsize);
             bits &= 7;
-            if ((more || left) && bits) {
-                if (bits & 1) {
+            if (more || left) {
+                if ((bits & 1) || !g.setdict) {
                     writen(g.outd, out, outsize);
-                    if (bits == 7)
+                    if (bits == 0 || bits > 5)
                         writen(g.outd, (unsigned char *)"\0", 1);
                     writen(g.outd, (unsigned char *)"\0\0\xff\xff", 4);
                 }
                 else {
                     assert(outsize > 0);
                     writen(g.outd, out, outsize - 1);
-                    do {
-                        out[outsize - 1] += 2 << bits;
-                        writen(g.outd, out + outsize - 1, 1);
-                        out[outsize - 1] = 0;
-                        bits += 2;
-                    } while (bits < 8);
+                    if (bits)
+                        do {
+                            out[outsize - 1] += 2 << bits;
+                            writen(g.outd, out + outsize - 1, 1);
+                            out[outsize - 1] = 0;
+                            bits += 2;
+                        } while (bits < 8);
                     writen(g.outd, out + outsize - 1, 1);
                 }
+                if (!g.setdict)             /* two markers when independent */
+                    writen(g.outd, (unsigned char *)"\0\0\0\xff\xff", 5);
             }
             else
                 writen(g.outd, out, outsize);
@@ -3251,15 +3284,18 @@ local void unlzw(void)
                machine instruction!) */
             {
                 unsigned rem = ((g.in_tot - g.in_left) - mark) % bits;
-                if (rem)
+                if (rem) {
                     rem = bits - rem;
-                while (rem > g.in_left) {
-                    rem -= g.in_left;
-                    if (load() == 0)
-                        break;
+                    if (NOMORE())
+                        break;              /* end of compressed data */
+                    while (rem > g.in_left) {
+                        rem -= g.in_left;
+                        if (load() == 0)
+                            throw(EDOM, "%s: lzw premature end", g.inf);
+                    }
+                    g.in_left -= rem;
+                    g.in_next += rem;
                 }
-                g.in_left -= rem;
-                g.in_next += rem;
             }
             buf = 0;
             left = 0;
@@ -3293,15 +3329,16 @@ local void unlzw(void)
             /* flush unused input bits and bytes to next 8*bits bit boundary */
             {
                 unsigned rem = ((g.in_tot - g.in_left) - mark) % bits;
-                if (rem)
+                if (rem) {
                     rem = bits - rem;
-                while (rem > g.in_left) {
-                    rem -= g.in_left;
-                    if (load() == 0)
-                        break;
+                    while (rem > g.in_left) {
+                        rem -= g.in_left;
+                        if (load() == 0)
+                            throw(EDOM, "%s: lzw premature end", g.inf);
+                    }
+                    g.in_left -= rem;
+                    g.in_next += rem;
                 }
-                g.in_left -= rem;
-                g.in_next += rem;
             }
             buf = 0;
             left = 0;
@@ -3457,7 +3494,7 @@ local void process(char *path)
                     errno = 0;
                 } while (lstat(g.inf, &st) && errno == ENOENT);
             }
-#ifdef EOVERFLOW
+#if defined(EOVERFLOW) && defined(EFBIG)
             if (errno == EOVERFLOW || errno == EFBIG)
                 throw(EDOM, "%s too large -- "
                       "not compiled with large file support", g.inf);
@@ -3470,9 +3507,10 @@ local void process(char *path)
             len = strlen(g.inf);
         }
 
-        /* only process regular files, but allow symbolic links if -f,
-           recurse into directory if -r */
+        /* only process regular files or named pipes, but allow symbolic links
+           if -f, recurse into directory if -r */
         if ((st.st_mode & S_IFMT) != S_IFREG &&
+            (st.st_mode & S_IFMT) != S_IFIFO &&
             (st.st_mode & S_IFMT) != S_IFLNK &&
             (st.st_mode & S_IFMT) != S_IFDIR) {
             complain("skipping: %s is a special file or device", g.inf);
@@ -3511,7 +3549,7 @@ local void process(char *path)
 
             /* run process() for each entry in the directory */
             base = len && g.inf[len - 1] != (unsigned char)'/' ?
-                   vstrcpy(&g.inf, &g.inz, len, "/") : len;
+                   vstrcpy(&g.inf, &g.inz, len, "/") - 1 : len;
             for (off = 0; roll[off]; off += strlen(roll + off) + 1) {
                 vstrcpy(&g.inf, &g.inz, base, roll + off);
                 process(g.inf);
@@ -3747,7 +3785,7 @@ local char *helptext[] = {
 #endif
 "",
 "Options:",
-"  -0 to -9, -11        Compression level (11 is much slower, a few % better)",
+"  -0 to -9, -11        Compression level (level 11, zopfli, is much slower)",
 "  --fast, --best       Compression levels 1 and 9 respectively",
 "  -b, --blocksize mmm  Set compression block size to mmmK (default 128K)",
 "  -c, --stdout         Write all processed output to stdout (won't delete)",
@@ -3775,7 +3813,7 @@ local char *helptext[] = {
 "  -S, --suffix .sss    Use suffix .sss instead of .gz (for compression)",
 "  -t, --test           Test the integrity of the compressed input",
 "  -T, --no-time        Do not store or restore mod time in/from header",
-#ifdef DEBUG
+#ifdef PIGZ_DEBUG
 "  -v, --verbose        Provide more verbose output (-vv to debug)",
 #else
 "  -v, --verbose        Provide more verbose output",
@@ -3960,7 +3998,7 @@ local int option(char *arg)
             case 'K':  g.form = 2;  g.sufx = ".zip";  break;
             case 'L':
                 fputs(VERSION, stderr);
-                fputs("Copyright (C) 2007-2015 Mark Adler\n", stderr);
+                fputs("Copyright (C) 2007-2016 Mark Adler\n", stderr);
                 fputs("Subject to the terms of the zlib license.\n",
                       stderr);
                 fputs("No warranty is provided or implied.\n", stderr);
@@ -3971,7 +4009,11 @@ local int option(char *arg)
             case 'R':  g.rsync = 1;  break;
             case 'S':  get = 3;  break;
             case 'T':  g.headis &= ~0xa;  break;
-            case 'V':  fputs(VERSION, stderr);  exit(0);
+            case 'V':
+                fputs(VERSION, stderr);
+                if (g.verbosity > 1)
+                    fprintf(stderr, "zlib %s\n", zlibVersion());
+                exit(0);
             case 'Z':
                 throw(EINVAL, "invalid option: LZW output not supported: %s",
                       bad);
@@ -4080,7 +4122,7 @@ int main(int argc, char **argv)
         yarn_prefix = g.prog;           /* prefix for yarn error messages */
         yarn_abort = cut_yarn;          /* call on thread error */
 #endif
-#ifdef DEBUG
+#ifdef PIGZ_DEBUG
         gettimeofday(&start, NULL);     /* starting time for log entries */
         log_init();                     /* initialize logging */
 #endif

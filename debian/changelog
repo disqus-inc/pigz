@@ -1,3 +1,10 @@
+pigz (2.3.4-1) unstable; urgency=low
+
+  * New upstream version
+  * Policy standards update (no changes required)
+
+ -- Eduard Bloch <blade@debian.org>  Wed, 05 Oct 2016 20:10:17 +0200
+
 pigz (2.3.3-2) unstable; urgency=low
 
   * Unstable upload
