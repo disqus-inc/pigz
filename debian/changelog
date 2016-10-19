@@ -1,3 +1,18 @@
+pigz (2.3.4-1~ppa1) UNRELEASED; urgency=medium
+
+  [ Mark Adler ]
+  * pigz version 2.3.4
+
+  [ Eduard Bloch ]
+  * Imported Debian patch 2.3.1-2
+
+  [ Trevor Joynson (trevorj) ]
+  * gbp
+
+  [ Trevor Joynson (Debian) ]
+
+ -- Mark Adler <madler@alumni.caltech.edu>  Tue, 18 Oct 2016 22:20:19 -0700
+
 pigz (2.3.1-2) unstable; urgency=high
 
   * Patch(es) from upstream's SCM to solve handling of target file names with
