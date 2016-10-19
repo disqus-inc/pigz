@@ -1,3 +1,10 @@
+pigz (2.3.4-1~lucid1) lucid; urgency=medium
+
+  * Rebuild for lucid
+  * Changed build-dependencies to packages available in lucid
+
+ -- Trevor Joynson (Debian) <debian@trevor.joynson.io>  Wed, 19 Oct 2016 00:17:38 -0700
+
 pigz (2.3.4-1) unstable; urgency=low
 
   * New upstream version
