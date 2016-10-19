@@ -1,3 +1,10 @@
+pigz (2.3.4-1~xenial1) xenial; urgency=medium
+
+  * Rebuild for xenial
+  * Changed build-dependencies to packages available in xenial
+
+ -- Trevor Joynson (Debian) <debian@trevor.joynson.io>  Wed, 19 Oct 2016 00:18:18 -0700
+
 pigz (2.3.4-1) unstable; urgency=low
 
   * New upstream version
