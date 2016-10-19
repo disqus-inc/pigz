@@ -1,0 +1,31 @@
+#!/bin/bash
+set -e
+set -xv
+
+: ${PPA:=disqus/backports}
+
+git checkout master
+
+# Import all versions
+#gbp import-dscs --debsnap pigz
+
+for dist in lucid precise trusty xenial yakkety; do
+    branch="ubuntu/$dist"
+    git checkout -B "$branch" master
+
+    dch \
+        -b \
+        -v $(dpkg-parsechangelog -S Version)'~'${dist}1 \
+        --force-distribution \
+        -D ${dist} "Rebuild for ${dist}"
+    dch \
+        -a "Changed build-dependencies to packages available in ${dist}"
+    git commit -m 'Bump' debian/changelog
+
+    gbp buildpackage --git-debian-branch="$branch" -S -sa
+done
+
+git checkout master
+
+dput "$PPA" ../build-area/*.changes
+
