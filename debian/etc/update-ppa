@@ -27,5 +27,7 @@ done
 
 git checkout master
 
-dput "$PPA" ../build-area/*.changes
+for c in ../build-area/*.changes; do
+    dput "$PPA" ../build-area/*.changes || :
+done
 
