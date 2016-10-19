@@ -1,6 +1,6 @@
 /* yarn.h -- generic interface for thread operations
- * Copyright (C) 2008, 2011, 2012, 2015 Mark Adler
- * Version 1.4  19 Jan 2015  Mark Adler
+ * Copyright (C) 2008 Mark Adler
+ * Version 1.1  26 Oct 2008  Mark Adler
  */
 
 /*
@@ -100,9 +100,9 @@
 
    -- Error control --
 
-   yarn_prefix - a char pointer to a string that will be the prefix for any
-        error messages that these routines generate before exiting -- if not
-        changed by the application, "yarn" will be used
+   yarn_name - a char pointer to a string that will be the prefix for any error
+        messages that these routines generate before exiting -- if not changed
+        by the application, "yarn" will be used
    yarn_abort - an external function that will be executed when there is an
         internal yarn error, due to out of memory or misuse -- this function
         may exit to abort the application, or if it returns, the yarn error
