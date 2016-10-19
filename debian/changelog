@@ -1,3 +1,10 @@
+pigz (2.3.4-1~precise1) precise; urgency=medium
+
+  * Rebuild for precise
+  * Changed build-dependencies to packages available in precise
+
+ -- Trevor Joynson (Debian) <debian@trevor.joynson.io>  Wed, 19 Oct 2016 00:17:51 -0700
+
 pigz (2.3.4-1) unstable; urgency=low
 
   * New upstream version
