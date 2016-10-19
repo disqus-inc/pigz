@@ -1,3 +1,10 @@
+pigz (2.3.4-1~trusty1) trusty; urgency=medium
+
+  * Rebuild for trusty
+  * Changed build-dependencies to packages available in trusty
+
+ -- Trevor Joynson (Debian) <debian@trevor.joynson.io>  Wed, 19 Oct 2016 00:18:04 -0700
+
 pigz (2.3.4-1) unstable; urgency=low
 
   * New upstream version
