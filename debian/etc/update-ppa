@@ -2,7 +2,7 @@
 set -e
 set -xv
 
-: ${PPA:=disqus/backports}
+: ${PPA:=ppa:disqus/backports}
 
 git checkout master
 
